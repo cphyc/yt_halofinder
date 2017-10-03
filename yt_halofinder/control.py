@@ -1,5 +1,6 @@
 from glob import glob
-from os import path
+import os
+from os import path, mkdir
 
 import yt
 from yt.funcs import mylog  # TODO: don't depend on yt
@@ -7,12 +8,17 @@ from yt.funcs import mylog  # TODO: don't depend on yt
 from functools import lru_cache
 import re
 import subprocess
+import shutil
 
 
 INFO_RE = re.compile('info_(\d{5})\.txt')
+BRICK_RE = re.compile('tree_bricks(\d{3})')
+
 CONFIG = dict(
-    exe='/home/cadiou/codes/HaloFinder/f90/HaloFinder',
-    exe_BR='/home/cadiou/codes/HaloFinder/f90/HaloFinder_BR'
+    halofinder   ='/home/cadiou/codes/HaloFinder/f90/HaloFinder',
+    halofinder_BR='/home/cadiou/codes/HaloFinder/f90/HaloFinder_BR',
+    treemaker   ='/home/cadiou/codes/TreeMaker/f90/TreeMaker',
+    treemaker_BR='/home/cadiou/codes/TreeMaker/f90/TreeMaker_BR'
 )
 
 def dict2conf(d):
@@ -90,8 +96,8 @@ class HaloFinder:
             s += ["'%s/'  Ra3  1  %05d" % (d, iout)]
 
         s = '\n'.join(s)
+        mylog.info('Writing input files to %s' % self.input_filelist)
         with open(self.input_filelist, 'w') as f:
-            mylog.info('Writing inputfiles_HaloMaker.dat')
             mylog.debug(s)
             f.write(s)
 
@@ -127,8 +133,8 @@ class HaloFinder:
 
         res = dict2conf(config)
         self.input_file = path.join(self.prefix, 'input_HaloMaker.dat')
+        mylog.info('Writing input parameters to %s' % self.input_file)
         with open(self.input_file, 'w') as f:
-            mylog.info('Writing input_HaloMaker.dat')
             mylog.debug(res)
             f.write(res)
 
@@ -144,26 +150,31 @@ module () {{
   eval $(/usr/bin/modulecmd bash $*)
 }}
 
-DIR={run_dir}
-touch .started
+DIR={wdir}
 export OMP_NUM_THREADS={ppn}
 module purge
 module load intel/15.0-python-3.5.1
 
-mkdir -p $DIR
 cd $DIR
-
-{HaloFinder_BR}
-touch .done
-rm .started
+touch .started
+{HaloFinder_BR} && rm .started && touch .done
 """
+
+        wdir = path.abspath(self.prefix)
+        if not path.isdir(wdir):
+            subprocess.call(['mkdir', wdir, '-p'])
+
         src = src.format(
-            run_dir=path.abspath(self.prefix),
-            HaloFinder_BR=CONFIG['exe_BR'],
+            wdir=wdir,
+            HaloFinder_BR=CONFIG['halofinder_BR'],
             ppn=self.ppn
         )
 
-        self.qsub_file = path.join(self.prefix, 'job.sh')
+        mylog.info('Copying binary file into %s' % self.prefix)
+        subprocess.call(['cp', CONFIG['halofinder_BR'], self.prefix])
+
+        self.qsub_file = path.join(self.prefix, 'job_halomaker.sh')
+        mylog.info('Writing qsub file to %s' % self.qsub_file)
         with open(self.qsub_file, 'w') as f:
             f.write(src)
 
@@ -182,4 +193,150 @@ rm .started
 
 
 class TreeMaker:
-    pass
+    def __init__(self, folder, prefix='.'):
+        self.folder = folder
+        self.prefix = path.abspath(prefix)
+
+        self.ppn = 16
+
+        self._bricks = None
+
+    @property
+    def bricks(self):
+        if self._bricks is not None: return self._bricks
+
+        self._bricks = sorted(glob(path.join(self.prefix, 'tree_bricks???')))
+        mylog.info('Found %s tree bricks' % len(self._bricks))
+        return self._bricks
+
+
+    def write_inputfiles(self):
+        bricks = ("'%s'" % b for b in self.bricks)
+
+        self.input_filelist = path.join(self.prefix, 'input_TreeMaker.dat')
+        mylog.info('Writing list of bricks in %s' % self.input_filelist)
+
+        header_line = '{nbrick_in} {ntree_out}\n'.format(
+            nbrick_in = len(self.bricks),
+            ntree_out = 1
+        )
+        with open(self.input_filelist, 'w') as f:
+            f.write(header_line)
+            f.write('\n'.join(bricks))
+
+    def write_qsub(self):
+        src = """
+#!/bin/sh
+#PBS -S /bin/sh
+#PBS -N TreeMaker
+#PBS -j oe
+#PBS -l nodes=1:ppn={ppn},walltime=4:00:00
+
+module () {{
+  eval $(/usr/bin/modulecmd bash $*)
+}}
+
+DIR={wdir}
+export OMP_NUM_THREADS={ppn}
+module purge
+module load intel/15.0-python-3.5.1
+
+cd $DIR
+touch .started
+{TreeMaker_BR} && rm .started && touch .done
+"""
+
+        wdir = path.abspath(self.prefix)
+        if not path.isdir(wdir):
+            subprocess.call(['mkdir', wdir, '-p'])
+
+        src = src.format(
+            wdir=wdir,
+            TreeMaker_BR=CONFIG['treemaker_BR'],
+            ppn=self.ppn
+        )
+
+        mylog.info('Copying binary file into %s' % self.prefix)
+        subprocess.call(['cp', CONFIG['treemaker_BR'], self.prefix])
+
+        self.qsub_file = path.join(self.prefix, 'job_treemaker.sh')
+        mylog.info('Writing qsub file to %s' % self.qsub_file)
+        with open(self.qsub_file, 'w') as f:
+            f.write(src)
+
+    def submit_qsub(self):
+        if not hasattr(self, 'input_filelist'):
+            self.write_inputfiles()
+
+        if not hasattr(self, 'qsub_file'):
+            self.write_qsub()
+
+        mylog.info('Submitting job to qsub')
+        subprocess.call(['qsub', self.qsub_file])
+
+
+def setup_for_pyrat(prefix, dest='.'):
+    # Get absolute paths
+    prefix = path.abspath(prefix)
+    dest = path.abspath(dest)
+
+    # Find all brick files
+    bricks = sorted(glob(path.join(prefix, 'tree_bricks???')))
+
+    # Helper to create a folder if not existing
+    def mkdir_p(d):
+        if not path.isdir(d):
+            mkdir(d)
+
+    mkdir_p(dest)
+
+    ## Create Halo directory
+    mylog.info('Creating halo directories')
+
+    dest_halos = path.join(dest, 'Halos')
+    mkdir_p(dest_halos)
+
+    for b in bricks:
+        ibrick = int(BRICK_RE.findall(b)[0])
+        _, brick_name = path.split(b)
+        dest_halo_i = path.join(dest_halos, str(ibrick))
+        mkdir_p(dest_halo_i)
+
+        bdest = path.join(dest_halo_i, brick_name)
+        mylog.debug('Linking %s -> %s' % (b, bdest))
+
+        if path.exists(bdest): os.remove(bdest)
+
+        # Create symlink
+        os.symlink(b, bdest)
+
+    ## Create Tree directory
+    mylog.info('Creating tree directories')
+    dest_tree = path.join(dest, 'Trees')
+    mkdir_p(dest_tree)
+
+    for b in bricks:
+        ibrick = int(BRICK_RE.findall(b)[0])
+        _, brick_name = path.split(b)
+
+        bdest = path.join(dest_tree, brick_name)
+        mylog.debug('Linking %s -> %s' % (b, bdest))
+
+        if path.exists(bdest): os.remove(bdest)
+
+        os.symlink(b, bdest)
+
+    ## Create links of all result files
+    def link_files(mask):
+        for file in glob(path.join(prefix, mask)):
+            fname = path.split(file)[1]
+            dest = path.join(dest_tree, fname)
+
+            mylog.debug('Linking %s -> %s' % (file, dest))
+            if path.exists(dest): os.remove(dest)
+
+            os.symlink(file, dest)
+
+    link_files('tstep_file_???.001')
+    link_files('tree_file_???.001')
+    link_files('props_???.001')
