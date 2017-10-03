@@ -180,3 +180,6 @@ rm .started
         mylog.info('Submitting job to qsub')
         subprocess.call(['qsub', self.qsub_file])
 
+
+class TreeMaker:
+    pass
