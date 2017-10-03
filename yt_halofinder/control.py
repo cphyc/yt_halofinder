@@ -101,7 +101,7 @@ class HaloFinder:
             mylog.debug(s)
             f.write(s)
 
-    def write_input(self):
+    def write_input(self, **kwargs):
         outputs = self.outputs
         ds = self.datasets[-1]
 
@@ -130,6 +130,8 @@ class HaloFinder:
             SC             = True,    # Activate the com in concentric spheres
             dcell_min      = 0.005781 # smallest possible cell size in Mpc
         )
+
+        config.update(kwargs)
 
         res = dict2conf(config)
         self.input_file = path.join(self.prefix, 'input_HaloMaker.dat')

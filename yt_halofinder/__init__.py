@@ -1,1 +1,1 @@
-from .control import HaloFinder, TreeMaker
+from .control import HaloFinder, TreeMaker, setup_for_pyrat

@@ -1,21 +1,26 @@
-This is a template extension package for yt.
+# Rationale
+This script is intended to be used to generate halo catalog and merger
+from python.
 
-To use this template, download an archive of the current state of it from:
+It is using AdaptaHop (also named HaloFinder, because why not) from Aubert, Pichon & Colombi 2004 to build the halo catalog as well as HaloMaker (?).
 
-https://bitbucket.org/yt_analysis/yt_extension_template/get/tip.zip
+The source of HaloFinder can be found at https://gitlab.com/cphyc/HaloFinder on request.
+The source of TreeMaker can be found at https://gitlab.com/cphyc/TreeMaker on request.
 
-and initialize a repository.  You will need to update a few things:
 
- * Copyright information in COPYING.txt
- * Update setup.py, being sure to change:
-    * `package_name`, changing the `extname` part to whatever your package is
-      named
-    * Your email address (in two places)
-    * The URL to point to your repository
-    * Version number
-    * Description
- * Rename the `extname` part of the directory `yt_extname` to be the name of
-   your package.
+## Installation
 
-Once a package of the form `yt_extname` is installed, it will be importable as
-`yt.extensions.extname`.
+First you need to get the sources
+```
+$ git clone https://github.com/cphyc/yt_halofinder.git
+```
+You then have to customize the `CONFIG` variable in `yt_halofinder/control.py` to match your installation. The paths should be absolute to your own `HaloFinder` and `TreeMaker`. The `BR` is for the `BIG_RUN` option of these two softwares, see their doc for information about it.
+
+Once you're done, fire up a terminal, go within the `yt_halofinder` root directory and execute
+```
+pip install .
+```
+That's it! To get an example, see the Example section.
+
+## Example
+For a complete example, see the `Example.ipynb` file.
