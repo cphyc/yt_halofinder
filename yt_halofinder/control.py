@@ -342,3 +342,4 @@ def setup_for_pyrat(prefix, dest='.'):
     link_files('tstep_file_???.001')
     link_files('tree_file_???.001')
     link_files('props_???.001')
+    link_files('halos_results.???')
