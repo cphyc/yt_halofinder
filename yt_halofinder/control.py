@@ -128,7 +128,7 @@ class HaloFinder:
             FlagPeriod     =   1,     # Periodic boundaries (1:True)
             DPMMC          = False,   # Activate the densest point in the most massive cell
             SC             = True,    # Activate the com in concentric spheres
-            dcell_min      = 0.005781 # smallest possible cell size in Mpc
+            dcell_min      = 3.05e-3  # smallest possible cell size in Mpc (levelmax=15)
         )
 
         config.update(kwargs)
