@@ -108,8 +108,8 @@ class HaloFinder:
         # Compute last expansion factor
         config = dict(
             af = 1/(ds.current_redshift+1),
-            lbox = ds.domain_width.in_units('Mpccm').value[0],
-            H_f = ds.hubble_constant,
+            lbox = ds.domain_width.in_units('Mpccm').value[0], # in Mpc
+            H_f = ds.hubble_constant*100,                      # in km/s/Mpc
             omega_f = ds.omega_matter,
             lambda_f = ds.omega_lambda,
             npart = 100,
