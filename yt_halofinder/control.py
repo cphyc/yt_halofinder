@@ -105,13 +105,17 @@ class HaloFinder:
         outputs = self.outputs
         ds = self.datasets[-1]
 
+        # Halo finder only supports flat lambda-CDM models for which
+        # omega_lambda + omega_matter = 1
+        omega_lambda = 1 - ds.omega_matter
+
         # Compute last expansion factor
         config = dict(
             af = 1/(ds.current_redshift+1),
             lbox = ds.domain_width.in_units('Mpccm').value[0], # in Mpc
             H_f = ds.hubble_constant*100,                      # in km/s/Mpc
             omega_f = ds.omega_matter,
-            lambda_f = ds.omega_lambda,
+            lambda_f = omega_lambda,
             npart = 100,
             method = 'MSM',
             cdm = False,
